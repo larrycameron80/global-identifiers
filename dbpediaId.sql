@@ -200,5 +200,20 @@ DBpediaCompareSingletonIds
 		RETURN 0;
 };
 
+-- callback function for csv_parse containing cells, row index and list of excepted predicates (userdata)
+-- since we 'misuse' the csv bulk load the first char of every cell is always a '<' and has to be substringed
+-- csv_parse: http://docs.openlinksw.com/virtuoso/fn_csv_parse/
+-- example call: here we open a gz compressed turtle file (make sure to put these in a 'dirs-allowed' directory -> ini config)
+-- present the callback function, define the userdata (which is a vecor of allowed predicates), and define a range (from, to; to read the whole file: 0, null)
+-- the last argument overrides the default deliminator of the csv, we use the closing '>' which partitions the tutle line, but leaves the opening '<' in place
+
+-- csv_parse(gz_file_open('/home/mf/virtuoso/dumpfiles/sameas_all_wikis_wikidata.ttl.gz'), 'DB.DBA.DBpediaBulkLoadTurtleFile', vector('http://www.w3.org/2002/07/owl#sameAs'), 0, null, vector('csv-delimiter', '>', 'csv-quote', '"'));
+create procedure DBpediaBulkLoadTurtleFile(inout cells any, in ind int, inout predicates any){
+    -- subj, pred, obj 
+    if(LENGTH(cells) >= 3 AND position(substring(cells[1], 1, LENGTH(cells[1])), predicates) >=0) {
+	DBpediaInsertLink(subseq(cells[0], 1), subseq(cells[2], 1));
+    }
+};
+
 GRANT EXECUTE ON DB.DBA.DBpediaRemoveLink TO "SPARQL";
 GRANT EXECUTE ON DB.DBA.DBpediaInsertLink TO "SPARQL";
