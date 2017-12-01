@@ -9,5 +9,12 @@ SELECT DB.DBA.DBpediaInsertLink('http://dbpedia.org/page/test','http://rdf.freeb
 
 SELECT DB.DBA.DBpediaRemoveLink(4);
 
-SELECT * FROM DBpediaSingletonMap
-SELECT * FROM DBpediaLinkMap
+SELECT * FROM DBpediaSingletonMap;
+SELECT * FROM DBpediaLinkMap;
+SELECT * FROM DBpediaIdCounter;
+SELECT * FROM DBpediaCurrentClusteringView;
+
+SELECT DB.DBA.DBpediaInsertLink('test1', 'test2');
+
+
+SELECT DB.DBA.DBPediaAddLinkRangeToCluster('2010-01-01 00:00:00.000000', '2020-01-01 00:00:00.000000');
