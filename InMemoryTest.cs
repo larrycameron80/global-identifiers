@@ -32,41 +32,43 @@ namespace Data_Management_Testing
                     // Max links to read - in this case higher than filesize
                     int maxLinks = 10000000;
 
+                    char[] splitter = { ' ' };
+
                     Console.WriteLine("Inserting links.");
 
                     for (int i = 0; i < maxLinks; i++)
                     {
                         // Match the line from the ttl file with the regex matcher
-                        MatchCollection matches = matcher.Matches(sr.ReadLine());
+                        //MatchCollection matches = matcher.Matches(sr.ReadLine());
 
-                        foreach (Match m in matches)
+                        string[] split = sr.ReadLine().Split(splitter);
+
+                        // The matcher has found the instances of the sameAs relation
+                        string uri1 = split[0].Replace("<", "").Replace(">", "");
+                        string uri2 = split[2].Replace("<", "").Replace(">", "");
+
+                        // Both uris are inserted into the singleton map ONLY IF no entry exists
+                        softInsertToSingletonMap(uri1);
+                        softInsertToSingletonMap(uri2);
+
+                        // The clusters of the current uris does not match
+                        if (!singletonTable[uri1].Equals(singletonTable[uri2]))
                         {
-                            // The matcher has found the instances of the sameAs relation
-                            string uri1 = m.Groups[1].Value;
-                            string uri2 = m.Groups[2].Value;
+                            // Both clusters are retrieved from the singleton table
+                            string cluster1 = singletonTable[uri1];
+                            string cluster2 = singletonTable[uri2];
 
-                            // Both uris are inserted into the singleton map ONLY IF no entry exists
-                            insertToSingletonMap(uri1);
-                            insertToSingletonMap(uri2);
+                            // The cluster sizes are compared
+                            bool uri1Major = getClusterSize(cluster1) > getClusterSize(cluster2);
 
-                            // The clusters of the current uris does not match
-                            if (!singletonTable[uri1].Equals(singletonTable[uri2]))
-                            {
-                                // Both clusters are retrieved from the singleton table
-                                string cluster1 = singletonTable[uri1];
-                                string cluster2 = singletonTable[uri2];
+                            // Find major/minor cluster: the major cluster is the bigger cluster, the minor cluster the smaller one
+                            string major = uri1Major ? cluster1 : cluster2;
+                            string minor = uri1Major ? cluster2 : cluster1;
 
-                                // The cluster sizes are compared
-                                bool uri1Major = getClusterSize(cluster1) > getClusterSize(cluster2);
-
-                                // Find major/minor cluster: the major cluster is the bigger cluster, the minor cluster the smaller one
-                                string major = uri1Major ? cluster1 : cluster2;
-                                string minor = uri1Major ? cluster2 : cluster1;
-
-                                // Merge the two clusters and update singleton table
-                                mergeClusters(major, minor);
-                            }
+                            // Merge the two clusters and update singleton table
+                            mergeClusters(major, minor);
                         }
+
 
                         // Show how many links we have processed
                         if (i % 100000 == 0)
@@ -78,6 +80,7 @@ namespace Data_Management_Testing
                             }) + " links inserted.");
                         }
                     }
+                    
                 }
 
             }
@@ -160,7 +163,7 @@ namespace Data_Management_Testing
         /// Insert a singleton into the singleton map ONLY IF there is no entry yet
         /// </summary>
         /// <param name="p"></param>
-        private static void insertToSingletonMap(string p)
+        private static void softInsertToSingletonMap(string p)
         {
             if (!singletonTable.ContainsKey(p))
             {
