@@ -257,7 +257,7 @@ create procedure DBpediaBulkLoadTurtleFile(inout cells any, in ind int, inout pr
 GRANT EXECUTE ON DB.DBA.DBpediaRemoveLink TO "SPARQL";
 GRANT EXECUTE ON DB.DBA.DBpediaInsertLink TO "SPARQL";
 
-
+-- TODO this has to go in a second file at some point
 INSERT INTO DBpediaIdCounter(Counter) values(100);
-INSERT INTO SourceMap(SourceId, SourceName, SourcePrefix, Confidence) values(1, 'Wikidata', 'http://wikidata%', 0.9);
-INSERT INTO SourceMap(SourceId, SourceName, SourcePrefix, Confidence) values(2, 'DBpedia', 'http://dbpedia.org%', 1);
+INSERT INTO SourceMap(SourceId, SourceName, SourcePrefix, Confidence) values(1, 'Wikidata', 'http://wikidata%', 1);
+INSERT INTO SourceMap(SourceId, SourceName, SourcePrefix, Confidence) values(2, 'DBpedia', 'http://dbpedia.org%', 0.9);
