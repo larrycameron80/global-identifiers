@@ -14,7 +14,41 @@ SELECT * FROM DBpediaLinkMap;
 SELECT * FROM DBpediaIdCounter;
 SELECT * FROM DBpediaCurrentClusteringView;
 
+
+SELECT DB.DBA.DBpediaSelectCluster('http://aa.dbpedia.org/resource/Wikipedia');
 SELECT DB.DBA.DBpediaInsertLink('test1', 'test2');
 
 
-SELECT DB.DBA.DBPediaAddLinkRangeToCluster('2010-01-01 00:00:00.000000', '2020-01-01 00:00:00.000000');
+SELECT SingletonId FROM DBpediaSingletonMap WHERE DBpediaId = 'http://aa.dbpedia.org/resource/Wikipedia'
+
+SELECT ClusterId FROM DBpediaCurrentClusteringView WHERE SingletonId = (SELECT SingletonId FROM DBpediaSingletonMap WHERE DBpediaId = 'http://aa.dbpedia.org/resource/Wikipedia');
+
+
+
+
+SELECT * FROM DBpediaSingletonMap 
+WHERE SingletonId = (SELECT ClusterId FROM DBpediaCurrentClusteringView 
+WHERE SingletonId = (SELECT SingletonId FROM DBpediaSingletonMap
+WHERE DBpediaId = 'http://aa.dbpedia.org/resource/Wikipedia'));
+
+SELECT * FROM DBpediaCurrentClusteringView 
+WHERE ClusterId = (SELECT ClusterId FROM DBpediaCurrentClusteringView 
+WHERE SingletonId = (SELECT SingletonId FROM DBpediaSingletonMap
+WHERE DBpediaId = 'http://aa.dbpedia.org/resource/Wikipedia'));
+
+
+SELECT * FROM
+(SELECT * FROM DBpediaCurrentClusteringView 
+WHERE ClusterId = (SELECT ClusterId FROM DBpediaCurrentClusteringView 
+WHERE SingletonId = (SELECT SingletonId FROM DBpediaSingletonMap
+WHERE DBpediaId = 'http://aa.dbpedia.org/resource/Wikipedia'))) slct 
+LEFT OUTER JOIN DBpediaSingletonMap map ON slct.SingletonId = map.SingletonId ORDER BY Confidence DESC;
+
+
+
+SELECT csv_parse(gz_file_open('C:/Users/Jan/Desktop/dump/sameas_all_wikis_wikidata.ttl'), 'DB.DBA.DBpediaBulkLoadTurtleFile', vector('http://www.w3.org/2002/07/owl#sameAs'), 500000, null, vector('csv-delimiter', '>', 'csv-quote', '"'));
+
+
+log_enable(2);
+csv_parse(gz_file_open('C:/Users/Jan/Desktop/dump/sameas_all_wikis_wikidata.ttl'), 'DB.DBA.DBpediaBulkLoadTurtleFile', vector('http://www.w3.org/2002/07/owl#sameAs'), 0, 1000000, vector('csv-delimiter', '>', 'csv-quote', '"'));
+SELECT DB.DBA.DBPediaAddLinkRangeToCluster('2010-01-01 00:00:00.000000', '2020-01-01 00:00:00.000000', 10000000);
