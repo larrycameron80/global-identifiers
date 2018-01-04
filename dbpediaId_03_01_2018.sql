@@ -291,7 +291,9 @@ DBpediaInsertLink
 -- present the callback function, define the userdata (which is a vecor of allowed predicates), and define a range (from, to; to read the whole file: 0, null)
 -- the last argument overrides the default deliminator of the csv, we use the closing '>' which partitions the tutle line, but leaves the opening '<' in place
 
--- log_enable(2);
+
+-- log_enable(2);          -- disable logging
+-- checkpoint_interval(0); -- disable checkpoints
 -- csv_parse(gz_file_open('/home/mf/virtuoso/dumpfiles/sameas_all_wikis_wikidata.ttl.gz'), 'DB.DBA.DBpediaBulkLoadTurtleFile', vector('http://www.w3.org/2002/07/owl#sameAs'), 0, null, vector('csv-delimiter', '>', 'csv-quote', '"'));
 create procedure DBpediaBulkLoadTurtleFile(inout cells any, in ind int, inout predicates any){
 -- subj, pred, obj 
