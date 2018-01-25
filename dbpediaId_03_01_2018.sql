@@ -285,10 +285,20 @@ GRANT EXECUTE ON DB.DBA.DBpediaSelectCluster TO "SPARQL";
 GRANT EXECUTE ON DB.DBA.DBPediaCreateClusterByDate TO "SPARQL";
 
 INSERT INTO DBpediaIdCounter(Counter) values(100);
---INSERT INTO SourceMap(SourceId, SourceName, SourcePrefix, Confidence) values(1, 'Wikidata', 'http://wikidata%', 1.1);
---INSERT INTO SourceMap(SourceId, SourceName, SourcePrefix, Confidence) values(2, 'DBpedia', 'http://dbpedia.org%', 1.0);
 
---log_enable(2);          -- disable logging
---checkpoint_interval(0); -- disable checkpoints
---csv_parse(gz_file_open('C:/Users/Jan/Desktop/dump/sameas_all_wikis_wikidata.ttl'), 'DB.DBA.DBpediaBulkLoadTurtleFile', 
---	vector('http://www.w3.org/2002/07/owl#sameAs'), 0, 100000, vector('csv-delimiter', '>', 'csv-quote', '"'));
+
+-- FOR TESTING --
+
+-- Parse the links into the database, link to .ttl file has to be adjusted, parameter '100000' is the max amount of links to parse in
+
+--log_enable(2); 
+--checkpoint_interval(0); 
+--csv_parse(gz_file_open('C:/Users/Jan/Desktop/dump/sameas_all_wikis_wikidata.ttl'), 'DB.DBA.DBpediaBulkLoadTurtleFile', vector('http://www.w3.org/2002/07/owl#sameAs'), 0, 100000, vector('csv-delimiter', '>', 'csv-quote', '"'));
+
+-- Create a new clustering for all inserted links:
+
+--SELECT DB.DBA.DBPediaCreateClusterByDate('clustering_001', '2010-01-01 00:00:00.000000', '2020-01-01 00:00:00.000000');	
+
+-- This will create two tables: clustering_001_links and clustering_001_view. 
+-- clustering_001_links will contain all the links added to the clustering, together with the cluster each link is currently in
+-- clustering_001_view will contain the singleton-to-cluster map
