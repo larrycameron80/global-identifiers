@@ -99,42 +99,56 @@ create procedure DBPediaCreateClusterByDate
 	}
 };
 
-
--- TODO: make it work with dynamic sql
-create procedure DBpediaRemoveLinkFromCluster
+-- Current approach: Find the affected cluster, remove the link, select all remaining links,
+-- reset singletons, reinsert all remaining links, delete clusterless singletons
+create procedure DBpediaRemoveLinkFromClustering
 (
-	in inLinkToRemove BIGINT
+	in tableNamePrefix VARCHAR,
+	in linkToRemove BIGINT
 )
 {
-	DECLARE clusteringLinksSelector, linkMapSelector ANY;
-	DECLARE linkToRemove, singletonId1, singletonId2, clusterToUpdate, it BIGINT;
+	DECLARE linkMap, viewMap VARCHAR;
+	linkMap := sprintf('%s_links', tableNamePrefix);
+	viewMap := sprintf('%s_view', tableNamePrefix);
 
-	-- check for a valid link to remove, also retrieve the cluster id here
-	--clusteringLinksSelector := (SELECT LinkId, ClusterId FROM DBpediaCurrentClusteringLinks WHERE LinkId = inLinkToRemove);
-	linkToRemove := clusteringLinksSelector[0][0];
-	clusterToUpdate := clusteringLinksSelector[0][1];
+	DECLARE state, msg, descs, rows, singletonRows ANY;
+	DECLARE clusterToUpdate, it BIGINT;
 
-	IF(linkToRemove IS NULL) {
-		RETURN;
+	-- Find the affected cluster
+	EXEC(sprintf('SELECT ClusterId FROM %s WHERE LinkId = %s', linkMap, CAST(linkToRemove AS VARCHAR)), state, msg, vector(), 1, descs, rows);
+
+	-- assign cluster id if already exists
+	IF (LENGTH(rows) > 0)
+	{
+		clusterToUpdate := CAST(rows[0][0] as BIGINT);
 	}
 
-	-- Remove the link
-	--DELETE FROM DBpediaCurrentClusteringLinks WHERE LinkId = linkToRemove;
+	-- We have a cluster to update
+	if(clusterToUpdate > 0)
+	{
+		-- Delete the link
+		EXEC(sprintf('DELETE FROM %s WHERE LinkId = %s', linkMap, CAST(linkToRemove AS VARCHAR)));
+		
+		-- Select the remaining links
+		EXEC(sprintf('SELECT LinkId FROM %s WHERE ClusterId = %s', linkMap, CAST(clusterToUpdate AS VARCHAR)), state, msg, vector(), 0, descs, rows);
 
-	-- Select all links in the cluster
-	--clusteringLinksSelector := (SELECT LinkId FROM DBpediaCurrentClusteringLinks WHERE ClusterId = clusterToUpdate);
+		-- Remove the links
+		EXEC(sprintf('DELETE FROM %s WHERE ClusterId = %s', linkMap, CAST(clusterToUpdate AS VARCHAR)));
+		
+		-- Remove the singletons
+		EXEC(sprintf('DELETE FROM %s WHERE ClusterId = %s', viewMap, CAST(clusterToUpdate AS VARCHAR)));
 
-	-- Reset the cluster
-	--UPDATE DBpediaCurrentClusteringView SET ClusterId = SingletonId WHERE ClusterId = clusterToUpdate; 
+		-- Re-Insert the links
+		for(it := 0; it < LENGTH(rows); it := it + 1)
+		{
 
-	--for(it := 0 ; it < LENGTH(linkMapSelector); it := it + 1) 
-	--{
-	--	DBPediaAddLinkToCluster(linkMapSelector[it][0], linkMapSelector[it][1], linkMapSelector[it][2]);
-	--}
+			EXEC(sprintf('SELECT SingletonId1, SingletonId2 FROM DBpediaLinkMap WHERE LinkId = %s', CAST(rows[it][0] AS VARCHAR)), 
+				state, msg, vector(), 1, descs, singletonRows);
 
-	--FOR SELECT LinkId, SingletonId1, SingletonId2, FROM DB WHERE ClusterId = clusterToUpdate {
-	--	DBPediaAddLinkToCluster(LinkId, SingletonId1, SingletonId2);
-	--}
+			--SIGNAL('DEBUG', sprintf('link %s, s1 %s, s2 %s', CAST(rows[it][0] AS VARCHAR), CAST(singletonRows[0][0] AS VARCHAR), CAST(singletonRows[0][1] AS VARCHAR)));
+			DBPediaAddLinkToCluster(rows[it][0], singletonRows[0][0], singletonRows[0][1], linkMap, viewMap);
+		}
+	}
 };
 
 -- Adds a link to a clustering. Any semi-reliable cluster id stabilization was removed in this process, since it will be applied
@@ -180,6 +194,7 @@ create procedure DBPediaAddLinkToCluster
 			-- This is the most expensive operation but should only occur rarely or when removing a link
 			EXEC(sprintf('UPDATE %s SET ClusterId = %s WHERE ClusterId = %s', viewMap, CAST(clusterId1 AS VARCHAR), CAST(clusterId2 AS VARCHAR)));
 			EXEC(sprintf('UPDATE %s SET ClusterId = %s WHERE ClusterId = %s', linkMap, CAST(clusterId1 AS VARCHAR), CAST(clusterId2 AS VARCHAR)));
+			EXEC(sprintf('INSERT INTO %s(LinkId, ClusterId) values(%s, %s)', linkMap, CAST(linkToInsert AS VARCHAR), CAST(clusterId1 AS VARCHAR)));
 		}
 
 		-- If the cluster ids don't differ, no further step is required
@@ -291,13 +306,23 @@ INSERT INTO DBpediaIdCounter(Counter) values(100);
 
 -- Parse the links into the database, link to .ttl file has to be adjusted, parameter '100000' is the max amount of links to parse in
 
---log_enable(2); 
---checkpoint_interval(0); 
---csv_parse(gz_file_open('C:/Users/Jan/Desktop/dump/sameas_all_wikis_wikidata.ttl'), 'DB.DBA.DBpediaBulkLoadTurtleFile', vector('http://www.w3.org/2002/07/owl#sameAs'), 0, 100000, vector('csv-delimiter', '>', 'csv-quote', '"'));
+log_enable(2); 
+checkpoint_interval(0); 
+csv_parse(gz_file_open('C:/Users/Jan/Desktop/dump/sameas_all_wikis_wikidata.ttl'), 'DB.DBA.DBpediaBulkLoadTurtleFile', vector('http://www.w3.org/2002/07/owl#sameAs'), 0, 1000, vector('csv-delimiter', '>', 'csv-quote', '"'));
+
+-- Insert a random wrong link between two singletons
+INSERT INTO DBpediaLinkMap(SingletonId1, SingletonId2, Relation, InsertDate) VALUES(100, 400, 'sameAs', now());
+
+DROP TABLE clustering_001_links;
+DROP TABLE clustering_001_view;
+
 
 -- Create a new clustering for all inserted links:
+SELECT DB.DBA.DBPediaCreateClusterByDate('clustering_001', '2010-01-01 00:00:00.000000', '2020-01-01 00:00:00.000000');	
 
---SELECT DB.DBA.DBPediaCreateClusterByDate('clustering_001', '2010-01-01 00:00:00.000000', '2020-01-01 00:00:00.000000');	
+SELECT DB.DBA.DBpediaRemoveLinkFromClustering('clustering_001', 1001);
+
+SELECT * FROM clustering_001_view;
 
 -- This will create two tables: clustering_001_links and clustering_001_view. 
 -- clustering_001_links will contain all the links added to the clustering, together with the cluster each link is currently in
