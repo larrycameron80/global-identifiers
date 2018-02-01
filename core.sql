@@ -1,8 +1,8 @@
 drop table DBpediaSingletonMap;
 drop table DBpediaLinkMap;
-drop table DBpediaHistoryMap;
 drop table DBpediaIdCounter;
 drop table SourceMap;
+drop table DBpediaClusteringMap;
 
 -- Maps any uri to a bigint identifier
 create table DBpediaSingletonMap
@@ -36,24 +36,20 @@ create table DBpediaLinkMap
 	"InsertDate" DATETIME
 );
 
--- Will keep track of inserts and removes, if needed
-create table DBpediaHistoryMap
+-- Will keep track of all the clustering that have been created so far
+create table DBpediaClusteringMap
 (
-	"ActionId" BIGINT IDENTITY,
-	"ActionType" VARCHAR NOT NULL, 
-	"LinkId" BIGINT NOT NULL, 
-	"SingletonId1" BIGINT NOT NULL,
-	"SingletonId2" BIGINT NOT NULL
+	"ClusteringName" VARCHAR PRIMARY KEY,
+	"CreationDate" DATETIME,
+	"LinkCount" BIGINT
 );
-
 
 commit work;
 delay(1);
 
 
 --used to normalize input uri, currently unused
-create procedure
-DBpediaNormalizeIri
+create procedure DBpediaNormalizeIri
 (
 	in uri VARCHAR
 )
@@ -65,6 +61,47 @@ DBpediaNormalizeIri
 
 	--TODO some more normalization??
 	return cleaned;
+};
+
+
+-- Creates a redirect between two clusterings. The source clustering that will pass its cluster ids to the 
+-- target clustering. This procedure will also create a redirect map for the target clustering which will resolve
+-- requests to deprecated cluster identifiers
+create procedure DBPediaCreateRedirectMap
+(
+	in sourceClustering VARCHAR, 
+	in targetClustering VARCHAR
+)
+{
+	-- first: check, if source and target clustering exist in the database
+	DECLARE sourceMap, targetMap, redirectMap VARCHAR;
+	sourceMap := sprintf('%s_view', sourceClustering);
+	targetMap := sprintf('%s_view', targetClustering);
+	redirectMap := sprintf('%s_redirect', targetClustering);
+
+	DECLARE sourceExists, targetExists, redirectExists ANY;
+	sourceExists := (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = sourceMap);
+	targetExists := (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = targetMap);
+
+	IF ((LENGTH(sourceExists) = 0) OR (LENGTH(targetExists) = 0))
+	{
+		-- Return, if target or source clustering do NOT exist
+		SIGNAL('INVALID', 'SOURCE OR TARGET CLUSTERING DOES NOT EXIST');
+		RETURN;
+	}
+
+	-- check, if redirect map already exists
+	DECLARE redirectExists ANY;
+	redirectExists := (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = redirectMap);
+
+	-- If there is no redirect yet, create a new one!
+	if(LENGTH(redirectExists) = 0)
+	{
+		EXEC(sprintf('CREATE TABLE %s_redirect ("SourceClustering" VARCHAR, "SourceClusterId" BIGINT NOT NULL,
+			"TargetClusterId" BIGINT NOT NULL)', targetClustering));	
+	}
+
+	SIGNAL('HELLO THERE!', 'READY TO CONTINUE...');
 };
 
 -- Creates a clustering for all links added between fromDate and toDate
@@ -87,9 +124,10 @@ create procedure DBPediaCreateClusterByDate
 	if(LENGTH(tableExists) = 0)
 	{
 		EXEC(sprintf('
-			CREATE TABLE %s ("LinkId" BIGINT PRIMARY KEY, "ClusterId" BIGINT NOT NULL)
-			CREATE TABLE %s ("SingletonId" BIGINT PRIMARY KEY, "ClusterId" BIGINT NOT NULL)', 
-			linkMap, viewMap, tableNamePrefix, viewMap));	
+			CREATE TABLE %s_links ("LinkId" BIGINT PRIMARY KEY, "ClusterId" BIGINT NOT NULL)
+			CREATE TABLE %s_view ("SingletonId" BIGINT PRIMARY KEY, "ClusterId" BIGINT NOT NULL)
+			CREATE TABLE %s_history ("LinkId" BIGINT NOT NULL, "Time" DATETIME, "Type" VARCHAR NOT NULL)', 
+			tableNamePrefix, tableNamePrefix, tableNamePrefix, tableNamePrefix, tableNamePrefix, viewMap));	
 	}
 
 	-- Select from global link map to insert into link map and view map
@@ -115,7 +153,7 @@ create procedure DBpediaRemoveLinkFromClustering
 	DECLARE clusterToUpdate, it BIGINT;
 
 	-- Find the affected cluster
-	EXEC(sprintf('SELECT ClusterId FROM %s WHERE LinkId = %s', linkMap, CAST(linkToRemove AS VARCHAR)), state, msg, vector(), 1, descs, rows);
+	EXEC(sprintf('SELECT ClusterId FROM %s WHERE LinkId = %i', linkMap, linkToRemove), state, msg, vector(), 1, descs, rows);
 
 	-- assign cluster id if already exists
 	IF (LENGTH(rows) > 0)
@@ -127,22 +165,22 @@ create procedure DBpediaRemoveLinkFromClustering
 	if(clusterToUpdate > 0)
 	{
 		-- Delete the link
-		EXEC(sprintf('DELETE FROM %s WHERE LinkId = %s', linkMap, CAST(linkToRemove AS VARCHAR)));
+		EXEC(sprintf('DELETE FROM %s WHERE LinkId = %i', linkMap, linkToRemove));
 		
 		-- Select the remaining links
-		EXEC(sprintf('SELECT LinkId FROM %s WHERE ClusterId = %s', linkMap, CAST(clusterToUpdate AS VARCHAR)), state, msg, vector(), 0, descs, rows);
+		EXEC(sprintf('SELECT LinkId FROM %s WHERE ClusterId = %i', linkMap, clusterToUpdate), state, msg, vector(), 0, descs, rows);
 
 		-- Remove the links
-		EXEC(sprintf('DELETE FROM %s WHERE ClusterId = %s', linkMap, CAST(clusterToUpdate AS VARCHAR)));
+		EXEC(sprintf('DELETE FROM %s WHERE ClusterId = %i', linkMap, clusterToUpdate));
 		
 		-- Remove the singletons
-		EXEC(sprintf('DELETE FROM %s WHERE ClusterId = %s', viewMap, CAST(clusterToUpdate AS VARCHAR)));
+		EXEC(sprintf('DELETE FROM %s WHERE ClusterId = %i', viewMap, clusterToUpdate));
 
 		-- Re-Insert the links
 		for(it := 0; it < LENGTH(rows); it := it + 1)
 		{
 
-			EXEC(sprintf('SELECT SingletonId1, SingletonId2 FROM DBpediaLinkMap WHERE LinkId = %s', CAST(rows[it][0] AS VARCHAR)), 
+			EXEC(sprintf('SELECT SingletonId1, SingletonId2 FROM DBpediaLinkMap WHERE LinkId = %i', rows[it][0]), 
 				state, msg, vector(), 1, descs, singletonRows);
 
 			--SIGNAL('DEBUG', sprintf('link %s, s1 %s, s2 %s', CAST(rows[it][0] AS VARCHAR), CAST(singletonRows[0][0] AS VARCHAR), CAST(singletonRows[0][1] AS VARCHAR)));
@@ -167,7 +205,7 @@ create procedure DBPediaAddLinkToCluster
 	DECLARE clusterId1, clusterId2, major, minor, linkId BIGINT;
 
 	-- select the cluster ids for the first singleton
-	EXEC(sprintf('SELECT ClusterId FROM %s WHERE SingletonId = %s', viewMap, CAST(singletonId1 AS VARCHAR)), state, msg, vector(), 1, descs, rows);
+	EXEC(sprintf('SELECT ClusterId FROM %s WHERE SingletonId = %i', viewMap, singletonId1), state, msg, vector(), 1, descs, rows);
 
 	-- assign cluster id if already exists
 	IF (LENGTH(rows) > 0)
@@ -176,7 +214,7 @@ create procedure DBPediaAddLinkToCluster
 	}
 
 	-- once again for the second singleton
-	EXEC(sprintf('SELECT ClusterId FROM %s WHERE SingletonId = %s', viewMap, CAST(singletonId2 AS VARCHAR)), state, msg, vector(), 1, descs, rows);
+	EXEC(sprintf('SELECT ClusterId FROM %s WHERE SingletonId = %i', viewMap, singletonId2), state, msg, vector(), 1, descs, rows);
 	
 	-- assign cluster id if already exists
 	IF (LENGTH(rows) > 0)
@@ -192,9 +230,9 @@ create procedure DBPediaAddLinkToCluster
 		{
 			-- Replace all cluster entries of one cluster id with the other
 			-- This is the most expensive operation but should only occur rarely or when removing a link
-			EXEC(sprintf('UPDATE %s SET ClusterId = %s WHERE ClusterId = %s', viewMap, CAST(clusterId1 AS VARCHAR), CAST(clusterId2 AS VARCHAR)));
-			EXEC(sprintf('UPDATE %s SET ClusterId = %s WHERE ClusterId = %s', linkMap, CAST(clusterId1 AS VARCHAR), CAST(clusterId2 AS VARCHAR)));
-			EXEC(sprintf('INSERT INTO %s(LinkId, ClusterId) values(%s, %s)', linkMap, CAST(linkToInsert AS VARCHAR), CAST(clusterId1 AS VARCHAR)));
+			EXEC(sprintf('UPDATE %s SET ClusterId = %i WHERE ClusterId = %i', viewMap, clusterId1, clusterId2));
+			EXEC(sprintf('UPDATE %s SET ClusterId = %i WHERE ClusterId = %i', linkMap, clusterId1, clusterId2));
+			EXEC(sprintf('INSERT INTO %s(LinkId, ClusterId) values(%i, %i)', linkMap, linkToInsert, clusterId1));
 		}
 
 		-- If the cluster ids don't differ, no further step is required
@@ -203,22 +241,22 @@ create procedure DBPediaAddLinkToCluster
 	ELSE IF ((clusterId1 = 0) AND (clusterId2 = 0)) 
 	{
 		-- Insert both singletons into the clustering with any of the two as cluster id
-		EXEC(sprintf('INSERT INTO %s(SingletonId, ClusterId) values(%s, %s)', viewMap, CAST(singletonId1 AS VARCHAR), CAST(singletonId1 AS VARCHAR)));
-		EXEC(sprintf('INSERT INTO %s(SingletonId, ClusterId) values(%s, %s)', viewMap, CAST(singletonId2 AS VARCHAR), CAST(singletonId1 AS VARCHAR)));
-		EXEC(sprintf('INSERT INTO %s(LinkId, ClusterId) values(%s, %s)', linkMap, CAST(linkToInsert AS VARCHAR), CAST(singletonId1 AS VARCHAR)));
+		EXEC(sprintf('INSERT INTO %s(SingletonId, ClusterId) values(%i, %i)', viewMap, singletonId1, singletonId1));
+		EXEC(sprintf('INSERT INTO %s(SingletonId, ClusterId) values(%i, %i)', viewMap, singletonId2, singletonId1));
+		EXEC(sprintf('INSERT INTO %s(LinkId, ClusterId) values(%i, %i)', linkMap, linkToInsert, singletonId1));
 	}
 	ELSE IF (clusterId1 = 0) 
 	{
 		-- Only singleton id 1 doesn't have a cluster, singleton id 2 already has one
-		EXEC(sprintf('INSERT INTO %s(SingletonId, ClusterId) values(%s, %s)', viewMap, CAST(singletonId1 AS VARCHAR), CAST(clusterId2 AS VARCHAR)));
-		EXEC(sprintf('INSERT INTO %s(LinkId, ClusterId) values(%s, %s)', linkMap, CAST(linkToInsert AS VARCHAR), CAST(clusterId2 AS VARCHAR)));
+		EXEC(sprintf('INSERT INTO %s(SingletonId, ClusterId) values(%i, %i)', viewMap, singletonId1, clusterId2));
+		EXEC(sprintf('INSERT INTO %s(LinkId, ClusterId) values(%i, %i)', linkMap, linkToInsert, clusterId2));
 	}
 	ELSE IF (clusterId2 = 0) 
 	{
 		-- Only singleton id 2 doesn't have a cluster, singleton id 1 already has one
-		EXEC(sprintf('INSERT INTO %s(SingletonId, ClusterId) values(%s, %s)', viewMap, CAST(singletonId2 AS VARCHAR), CAST(clusterId1 AS VARCHAR)));
-		EXEC(sprintf('INSERT INTO %s(LinkId, ClusterId) values(%s, %s)', linkMap, CAST(linkToInsert AS VARCHAR), CAST(clusterId1 AS VARCHAR)));
-	}
+		EXEC(sprintf('INSERT INTO %s(SingletonId, ClusterId) values(%i, %i)', viewMap, singletonId2, clusterId1));
+		EXEC(sprintf('INSERT INTO %s(LinkId, ClusterId) values(%i, %i)', linkMap, linkToInsert, clusterId1));
+	}	
 
 	commit work;
 };
@@ -298,6 +336,7 @@ GRANT EXECUTE ON DB.DBA.DBpediaRemoveLink TO "SPARQL";
 GRANT EXECUTE ON DB.DBA.DBpediaInsertLink TO "SPARQL";
 GRANT EXECUTE ON DB.DBA.DBpediaSelectCluster TO "SPARQL";
 GRANT EXECUTE ON DB.DBA.DBPediaCreateClusterByDate TO "SPARQL";
+GRANT EXECUTE ON DB.DBA.DBPediaCreateRedirectMap TO "SPARQL";
 
 INSERT INTO DBpediaIdCounter(Counter) values(100);
 
@@ -313,17 +352,29 @@ csv_parse(gz_file_open('C:/Users/Jan/Desktop/dump/sameas_all_wikis_wikidata.ttl'
 -- Insert a random wrong link between two singletons
 INSERT INTO DBpediaLinkMap(SingletonId1, SingletonId2, Relation, InsertDate) VALUES(100, 400, 'sameAs', now());
 
+-- Drop the dynamic test tables
 DROP TABLE clustering_001_links;
 DROP TABLE clustering_001_view;
+DROP TABLE clustering_001_history;
 
+DROP TABLE clustering_002_links;
+DROP TABLE clustering_002_view;
+DROP TABLE clustering_002_history;
 
 -- Create a new clustering for all inserted links:
-SELECT DB.DBA.DBPediaCreateClusterByDate('clustering_001', '2010-01-01 00:00:00.000000', '2020-01-01 00:00:00.000000');	
-
-SELECT DB.DBA.DBpediaRemoveLinkFromClustering('clustering_001', 1001);
-
-SELECT * FROM clustering_001_view;
-
 -- This will create two tables: clustering_001_links and clustering_001_view. 
 -- clustering_001_links will contain all the links added to the clustering, together with the cluster each link is currently in
 -- clustering_001_view will contain the singleton-to-cluster map
+-- Because of the wrong link inserted above, two separate clusters will be merged into one
+SELECT DB.DBA.DBPediaCreateClusterByDate('clustering_001', '2010-01-01 00:00:00.000000', '2020-01-01 00:00:00.000000');	
+SELECT DB.DBA.DBPediaCreateClusterByDate('clustering_002', '2010-01-01 00:00:00.000000', '2020-01-01 00:00:00.000000');	
+
+-- Remove the wrong link from one clustering
+SELECT DB.DBA.DBpediaRemoveLinkFromClustering('clustering_001', 1001);
+
+SELECT DB.DBA.DBPediaCreateRedirectMap('clustering_001', 'clustering_002');
+
+-- Clustering is back to normal!
+SELECT * FROM clustering_001_view;
+
+
