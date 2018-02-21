@@ -53,3 +53,15 @@ log_enable(2);          -- disable logging
 checkpoint_interval(0); -- disable checkpoints
 csv_parse(gz_file_open('C:/Users/Jan/Desktop/dump/sameas_all_wikis_wikidata.ttl'), 'DB.DBA.DBpediaBulkLoadTurtleFile', vector('http://www.w3.org/2002/07/owl#sameAs'), 0, 1000000, vector('csv-delimiter', '>', 'csv-quote', '"'));
 SELECT DB.DBA.DBPediaAddLinkRangeToCluster('2010-01-01 00:00:00.000000', '2020-01-01 00:00:00.000000', 10000000);
+
+
+
+SELECT DB.DBA.DBPediaCreateClusterByDate('clustering_001', '2010-01-01 00:00:00.000000', '2020-01-01 00:00:00.000000');	
+SELECT * FROM clustering_010_links
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='clustering_001_view'
+
+
+log_enable(2);          -- disable logging
+checkpoint_interval(0); -- disable checkpoints
+csv_parse(gz_file_open('C:/Users/Jan/Desktop/dump/sameas_all_wikis_wikidata.ttl'), 'DB.DBA.DBpediaBulkLoadTurtleFile', 
+	vector('http://www.w3.org/2002/07/owl#sameAs'), 0, 1000, vector('csv-delimiter', '>', 'csv-quote', '"'));
