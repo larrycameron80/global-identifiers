@@ -261,6 +261,34 @@ create procedure DBPediaAddLinkToCluster
 	commit work;
 };
 
+
+create procedure DBpediaGetIdentifier
+(
+	in iri VARCHAR
+)
+RETURNS VARCHAR
+{
+	DECLARE singletonIdCounter, singletonId BIGINT;
+	
+	singletonId := (SELECT SingletonId FROM DBpediaSingletonMap WHERE DBpediaId = iri);
+	
+	IF(singletonId IS NULL) 
+	{
+		singletonIdCounter := (SELECT Counter FROM DBpediaIdCounter);
+	
+		singletonId := singletonIdCounter;
+		
+		INSERT INTO DBpediaSingletonMap(DBpediaId, SingletonId) values(iri, singletonId);
+		singletonIdCounter := singletonIdCounter + 1;
+		
+		-- The increased bigint counter is saved back into its table
+		UPDATE DBpediaIdCounter SET Counter = singletonIdCounter;
+	}
+	
+	RETURN singletonId;
+	
+};
+
 -- New links will be fed into the database with this procedure. A link connects two uris and has
 -- a specified relation such as "sameAs"
 create procedure DBpediaInsertLink
