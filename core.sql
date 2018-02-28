@@ -266,26 +266,26 @@ create procedure DBpediaGetIdentifier
 (
 	in iri VARCHAR
 )
-RETURNS VARCHAR
+RETURNS BIGINT
 {
-	DECLARE singletonIdCounter, singletonId BIGINT;
+	DECLARE singletonIdCounter, singleton BIGINT;
 	
-	singletonId := (SELECT SingletonId FROM DBpediaSingletonMap WHERE DBpediaId = iri);
+	singleton := (SELECT SingletonId FROM DBpediaSingletonMap WHERE DBpediaId = iri);
 	
-	IF(singletonId IS NULL) 
+	IF(singleton IS NULL) 
 	{
 		singletonIdCounter := (SELECT Counter FROM DBpediaIdCounter);
 	
 		singletonId := singletonIdCounter;
 		
-		INSERT INTO DBpediaSingletonMap(DBpediaId, SingletonId) values(iri, singletonId);
+		INSERT INTO DBpediaSingletonMap(DBpediaId, SingletonId) values(iri, singleton);
 		singletonIdCounter := singletonIdCounter + 1;
 		
 		-- The increased bigint counter is saved back into its table
 		UPDATE DBpediaIdCounter SET Counter = singletonIdCounter;
 	}
 	
-	RETURN singletonId;
+	RETURN singleton;
 	
 };
 
