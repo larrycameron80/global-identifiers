@@ -365,44 +365,10 @@ GRANT EXECUTE ON DB.DBA.DBpediaInsertLink TO "SPARQL";
 GRANT EXECUTE ON DB.DBA.DBpediaSelectCluster TO "SPARQL";
 GRANT EXECUTE ON DB.DBA.DBPediaCreateClusterByDate TO "SPARQL";
 GRANT EXECUTE ON DB.DBA.DBPediaCreateRedirectMap TO "SPARQL";
+GRANT EXECUTE ON DB.DBA.DBpediaGetIdentifier TO "SPARQL";
 
 INSERT INTO DBpediaIdCounter(Counter) values(100);
 
 
--- FOR TESTING --
-
--- Parse the links into the database, link to .ttl file has to be adjusted, parameter '100000' is the max amount of links to parse in
-
-log_enable(2); 
-checkpoint_interval(0); 
-csv_parse(gz_file_open('C:/Users/Jan/Desktop/dump/sameas_all_wikis_wikidata.ttl'), 'DB.DBA.DBpediaBulkLoadTurtleFile', vector('http://www.w3.org/2002/07/owl#sameAs'), 0, 1000, vector('csv-delimiter', '>', 'csv-quote', '"'));
-
--- Insert a random wrong link between two singletons
-INSERT INTO DBpediaLinkMap(SingletonId1, SingletonId2, Relation, InsertDate) VALUES(100, 400, 'sameAs', now());
-
--- Drop the dynamic test tables
-DROP TABLE clustering_001_links;
-DROP TABLE clustering_001_view;
-DROP TABLE clustering_001_history;
-
-DROP TABLE clustering_002_links;
-DROP TABLE clustering_002_view;
-DROP TABLE clustering_002_history;
-
--- Create a new clustering for all inserted links:
--- This will create two tables: clustering_001_links and clustering_001_view. 
--- clustering_001_links will contain all the links added to the clustering, together with the cluster each link is currently in
--- clustering_001_view will contain the singleton-to-cluster map
--- Because of the wrong link inserted above, two separate clusters will be merged into one
-SELECT DB.DBA.DBPediaCreateClusterByDate('clustering_001', '2010-01-01 00:00:00.000000', '2020-01-01 00:00:00.000000');	
-SELECT DB.DBA.DBPediaCreateClusterByDate('clustering_002', '2010-01-01 00:00:00.000000', '2020-01-01 00:00:00.000000');	
-
--- Remove the wrong link from one clustering
-SELECT DB.DBA.DBpediaRemoveLinkFromClustering('clustering_001', 1001);
-
-SELECT DB.DBA.DBPediaCreateRedirectMap('clustering_001', 'clustering_002');
-
--- Clustering is back to normal!
-SELECT * FROM clustering_001_view;
 
 
