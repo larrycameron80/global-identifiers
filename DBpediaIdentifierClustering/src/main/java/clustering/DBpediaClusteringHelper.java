@@ -81,7 +81,8 @@ public class DBpediaClusteringHelper {
                                         final File file,
                                         String outputPath,
                                         String outputSuffix,
-                                        final int lineLimit) {
+                                        final int lineLimit,
+                                        final String prefix) {
 
         // create the output path
         String fileName = file.getName().substring(0, file.getName().indexOf('.'));
@@ -111,7 +112,7 @@ public class DBpediaClusteringHelper {
 
                             StreamRDF writer = StreamRDFWriter.getWriterStream(out, language);
 
-                            RDFDataMgr.parse(new DataTripleRewriter(writer, singletonMap, clustering, lineLimit), in, language);
+                            RDFDataMgr.parse(new DataTripleRewriter(writer, singletonMap, clustering, lineLimit, prefix), in, language);
 
                         } catch (IOException e) {
                             e.printStackTrace();
