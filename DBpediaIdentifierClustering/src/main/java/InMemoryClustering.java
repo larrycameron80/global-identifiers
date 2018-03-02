@@ -31,6 +31,7 @@ public class InMemoryClustering {
         String outputPath = DEFAULT_OUTPUT_PATH;
         String singletonMapFile = DEFAULT_SINGLETON_MAP_FILE;
         String linkPath = DEFAULT_LINK_PATH;
+        String prefix = null;
         int limit = -1;
 
         System.out.println("Starting Clustering...");
@@ -61,6 +62,10 @@ public class InMemoryClustering {
                 catch(NumberFormatException e) {
                     limit = -1;
                 }
+            }
+
+            if(args[i].equals("-prefix")) {
+                prefix = args[i + 1];
             }
         }
 
@@ -134,7 +139,8 @@ public class InMemoryClustering {
                     file,
                     outputPath,
                     "-replaced",
-                    limit);
+                    limit,
+                    prefix);
 
             System.out.println("Done rewriting data file " + file + ".");
         }
