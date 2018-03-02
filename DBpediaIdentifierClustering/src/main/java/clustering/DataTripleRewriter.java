@@ -19,12 +19,12 @@ public class DataTripleRewriter implements StreamRDF {
     private final AtomicInteger linesRead;
     private final int lineLimit;
     private final StreamRDF writer;
-    private final String prefix;
+    private final String[] prefixes;
 
     public DataTripleRewriter(StreamRDF writer, ISingletonMap singletonMap, IClusterMap clusterMap, int lineLimit,
-                              String prefix) {
+                              String[] prefixes) {
 
-        this.prefix = prefix;
+        this.prefixes = prefixes;
         this.singletonMap = singletonMap;
         this.clusterMap = clusterMap;
         this.lineLimit = lineLimit;
@@ -72,8 +72,21 @@ public class DataTripleRewriter implements StreamRDF {
 
             String uri = object.getURI();
 
-            if(prefix != null && !uri.startsWith(prefix))
-                return object;
+            if(prefixes != null) {
+                boolean hasMatch = false;
+
+                for(String prefix : prefixes) {
+
+                    if(uri.endsWith(prefix)) {
+                        hasMatch = true;
+                        break;
+                    }
+                }
+
+                if(!hasMatch) {
+                    return object;
+                }
+            }
 
             long objectId = singletonMap.get(object.getURI());
             Long objectClusterId = clusterMap.get(objectId);
