@@ -1,6 +1,7 @@
 import clustering.DBpediaClusteringHelper;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.sql.SQLException;
 
 public class InMemoryClustering {
@@ -69,14 +70,15 @@ public class InMemoryClustering {
             }
         }
 
-        // debug, TODO: remove!
-        limit = 1000;
-
         System.out.println("Using data path: " + dataPath);
         System.out.println("Using link path: " + linkPath);
         System.out.println("Using singleton map: " + singletonMapFile);
         System.out.println("Using output path: " + outputPath);
         System.out.println("=============================");
+
+        findOrCreatePath(dataPath);
+        findOrCreatePath(outputPath);
+        findOrCreatePath(linkPath);
 
         try {
             Class.forName("virtuoso.jdbc4.Driver");
@@ -145,6 +147,14 @@ public class InMemoryClustering {
 
 
         System.out.println("Clustering finished successfully.");
+    }
+
+    private static void findOrCreatePath(String path) {
+        File folder = new File(path);
+        if(!folder.exists() || !folder.isDirectory()) {
+            folder.mkdir();
+        }
+
     }
 
 }
