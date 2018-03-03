@@ -9,6 +9,7 @@ public class InMemoryClusterMap implements IClusterMap {
 
     private HashMap<Long, Long> _singletonToCluster;
 
+
     public InMemoryClusterMap() {
         _clusterToSingletons = new HashMap<Long, ArrayList<Long>>();
         _singletonToCluster = new HashMap<Long, Long>();

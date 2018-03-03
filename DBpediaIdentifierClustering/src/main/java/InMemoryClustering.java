@@ -69,6 +69,9 @@ public class InMemoryClustering {
             }
         }
 
+        // debug, TODO: remove!
+        limit = 1000;
+
         System.out.println("Using data path: " + dataPath);
         System.out.println("Using link path: " + linkPath);
         System.out.println("Using singleton map: " + singletonMapFile);
@@ -81,28 +84,19 @@ public class InMemoryClustering {
             e.printStackTrace();
         }
 
-        String connectionString = "jdbc:virtuoso://88.99.242.78:1118/UID=dba/PWD=kerala/log_enable=2";
+        String connectionString = "jdbc:virtuoso://127.0.0.1:1111/UID=dba/PWD=dba/log_enable=2";
         // create new maps
-        DatabaseSingletonMap singletonMap = new DatabaseSingletonMap(connectionString);
-        InMemoryClusterMap clusterMap = new InMemoryClusterMap();
-
-        if(!singletonMap.isConnected()) {
-
-            System.out.println("Singleton Map not connected to databse!");
-            return;
-        }
-
-        // load singleton map
-        System.out.println("Loading singleton map from " + singletonMapFile + "...");
+        DatabaseSingletonMap singletonMap;
 
         try {
-            singletonMap.load();
+            singletonMap = new DatabaseSingletonMap(connectionString, 1000000);
         } catch (SQLException e) {
             e.printStackTrace();
             return;
         }
 
-        System.out.println("Done loading singleton map.");
+        InMemoryClusterMap clusterMap = new InMemoryClusterMap();
+
 
         System.out.println("=============================");
 
@@ -145,18 +139,10 @@ public class InMemoryClustering {
             System.out.println("Done rewriting data file " + file + ".");
         }
 
-        // save singleton map
-        System.out.println("Saving singleton map to database");
 
-        try {
-            singletonMap.save();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
 
         singletonMap.close();
 
-        System.out.println("Done saving singleton map.");
 
         System.out.println("Clustering finished successfully.");
     }

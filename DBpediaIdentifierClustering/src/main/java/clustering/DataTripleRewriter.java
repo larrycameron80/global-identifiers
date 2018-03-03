@@ -7,6 +7,7 @@ import org.apache.jena.sparql.core.Quad;
 import java.io.BufferedOutputStream;
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -88,7 +89,15 @@ public class DataTripleRewriter implements StreamRDF {
                 }
             }
 
-            long objectId = singletonMap.get(object.getURI());
+            long objectId = 0;
+
+            try {
+                objectId = singletonMap.get(object.getURI());
+            } catch (SQLException e) {
+                e.printStackTrace();
+                return object;
+            }
+
             Long objectClusterId = clusterMap.get(objectId);
 
             String objectReplaceUri = createDBpediaId(objectClusterId != null ? objectClusterId : objectId);

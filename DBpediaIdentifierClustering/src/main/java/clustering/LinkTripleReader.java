@@ -5,6 +5,7 @@ import org.apache.jena.graph.Triple;
 import org.apache.jena.riot.system.StreamRDF;
 import org.apache.jena.sparql.core.Quad;
 
+import java.sql.SQLException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -42,15 +43,23 @@ public class LinkTripleReader implements StreamRDF {
             int l = linesRead.get();
 
             if (lineLimit == -1 || l <= lineLimit) {
-                long subjectId = singletonMap.get(subject.getURI());
-                long objectId = singletonMap.get(object.getURI());
 
-                clusterMap.addLink(subjectId, objectId);
+                try {
 
-                l = linesRead.incrementAndGet();
+                    long subjectId = singletonMap.get(subject.getURI());
+                    long objectId = singletonMap.get(object.getURI());
 
-                if (l % 100000 == 0) {
-                    System.out.println(l + " links read.");
+                    clusterMap.addLink(subjectId, objectId);
+
+                    l = linesRead.incrementAndGet();
+
+                    if (l % 100000 == 0) {
+                        System.out.println(l + " links read.");
+                    }
+                }
+                catch(SQLException e) {
+                    e.printStackTrace();
+                    Thread.currentThread().stop();
                 }
             }
             else {

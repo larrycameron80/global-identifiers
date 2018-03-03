@@ -1,5 +1,7 @@
 package clustering;
 
+import java.sql.SQLException;
+
 public interface ISingletonMap {
 
     /**
@@ -7,6 +9,6 @@ public interface ISingletonMap {
      * @param iri The string identifier
      * @return The singleton identifier as long integer
      */
-    long get(String iri);
+    long get(String iri) throws SQLException;
 
 }

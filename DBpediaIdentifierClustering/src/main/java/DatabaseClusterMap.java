@@ -37,7 +37,10 @@ public class DatabaseClusterMap implements IClusterMap {
         return isConnected;
     }
 
-    public void createTables(String clusteringName)
+    public void createTables(String clusteringName) {
+
+        // create tables needed for the clustering // stored procedure already present
+    }
 
     /**
      * Add a link to the clustering, ids already resolved using SingletonMap
@@ -46,11 +49,19 @@ public class DatabaseClusterMap implements IClusterMap {
      */
     public void addLink(long fromId, long toId) {
 
-        CallableStatement addLinkStatement = conn.prepareCall("{call demoSp(?, ?)}");
+        // register the link in the database and save it to name + "_links
+        // TODO: Needs a way to tackle duplicates or multiple runs
+        // prepare stored procedure etc.
+        // CallableStatement addLinkStatement = conn.prepareCall("{call demoSp(?, ?)}");
+
+        // prefer no memory stuff
+
+
     }
 
     public Long get(long id) {
 
+        // TODO: query id from database!
         return _singletonToCluster.get(id);
     }
 }
