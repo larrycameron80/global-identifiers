@@ -78,7 +78,7 @@ public class DataTripleRewriter implements StreamRDF {
 
                 for(String prefix : prefixes) {
 
-                    if(uri.endsWith(prefix)) {
+                    if(uri.startsWith(prefix)) {
                         hasMatch = true;
                         break;
                     }
