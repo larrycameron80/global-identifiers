@@ -63,10 +63,10 @@ create procedure DBpediaNormalizeIri
 	return cleaned;
 };
 
-
 -- Creates a redirect between two clusterings. The source clustering that will pass its cluster ids to the 
 -- target clustering. This procedure will also create a redirect map for the target clustering which will resolve
 -- requests to deprecated cluster identifiers
+-- This proc is completely unfinished and does not work
 create procedure DBPediaCreateRedirectMap
 (
 	in sourceClustering VARCHAR, 
@@ -104,6 +104,26 @@ create procedure DBPediaCreateRedirectMap
 	SIGNAL('HELLO THERE!', 'READY TO CONTINUE...');
 };
 
+create procedure DBpediaClusteringExists 
+(
+	in clusteringName VARCHAR,
+	out clusteringExists INTEGER
+)
+{
+	DECLARE tableExists ANY;
+	DECLARE viewName VARCHAR;
+
+	clusteringExists := 1;
+
+	viewName := sprintf('%s_view', clusteringName);
+	tableExists := (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = viewName);
+
+	-- If there are no tables for the current clustering, create new tables!
+	if(LENGTH(tableExists) = 0)
+	{
+		clusteringExists := 0;
+	}	
+};
 -- Creates a clustering for all links added between fromDate and toDate
 create procedure DBPediaCreateClusterByDate
 (
@@ -261,7 +281,6 @@ create procedure DBPediaAddLinkToCluster
 	commit work;
 };
 
-
 create procedure DBpediaGetIdentifier
 (
 	in iri VARCHAR,
@@ -269,7 +288,8 @@ create procedure DBpediaGetIdentifier
 )
 {
 	DECLARE singletonIdCounter BIGINT;
-	
+
+
 	singleton := (SELECT SingletonId FROM DBpediaSingletonMap WHERE DBpediaId = iri);
 	
 	IF(singleton IS NULL) 
@@ -283,6 +303,44 @@ create procedure DBpediaGetIdentifier
 		
 		-- The increased bigint counter is saved back into its table
 		UPDATE DBpediaIdCounter SET Counter = singletonIdCounter;
+	}
+};
+
+create procedure DBpediaGetIdentifierInClustering
+(
+	in iri VARCHAR,
+	in clustering VARCHAR,
+	out singleton BIGINT
+)
+{
+	DECLARE singletonIdCounter BIGINT;
+
+
+	singleton := (SELECT SingletonId FROM DBpediaSingletonMap WHERE DBpediaId = iri);
+	
+	IF(singleton IS NULL) 
+	{
+		singletonIdCounter := (SELECT Counter FROM DBpediaIdCounter);
+	
+		singleton := singletonIdCounter;
+		
+		INSERT INTO DBpediaSingletonMap(DBpediaId, SingletonId) values(iri, singleton);
+		singletonIdCounter := singletonIdCounter + 1;
+		
+		-- The increased bigint counter is saved back into its table
+		UPDATE DBpediaIdCounter SET Counter = singletonIdCounter;
+	}
+	ELSE 
+	{
+		-- Declare variables for the dynamic select
+		DECLARE state, msg, descs, rows ANY;
+	
+		EXEC(sprintf('SELECT ClusterId FROM %s_view WHERE SingletonId = %i', clustering, singleton), state, msg, vector(), 1, descs, rows);
+
+		IF (LENGTH(rows) > 0)
+		{
+			singleton := CAST(rows[0][0] as BIGINT);
+		}
 	}
 };
 

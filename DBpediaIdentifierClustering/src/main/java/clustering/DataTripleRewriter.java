@@ -98,9 +98,16 @@ public class DataTripleRewriter implements StreamRDF {
                 return object;
             }
 
-            Long objectClusterId = clusterMap.get(objectId);
+            if(clusterMap != null) {
 
-            String objectReplaceUri = createDBpediaId(objectClusterId != null ? objectClusterId : objectId);
+                Long objectClusterId = clusterMap.get(objectId);
+
+                if(objectClusterId != null) {
+                    objectId = objectClusterId;
+                }
+            }
+
+            String objectReplaceUri = createDBpediaId(objectId);
 
             return NodeFactory.createURI(objectReplaceUri);
         }

@@ -1,5 +1,6 @@
 import clustering.DBpediaClusteringHelper;
 
+import javax.print.DocFlavor;
 import java.io.File;
 import java.sql.SQLException;
 
@@ -20,36 +21,57 @@ public class DataRewriter {
      */
     public static String DEFAULT_OUTPUT_PATH = "data/out";
 
-    /**
-     * The singleton map file to read
-     */
-    public static String DEFAULT_SINGLETON_MAP_FILE = "singleton-map.bz2";
+
+
+    public static String ARGS_INPUT_PATH = "-in";
+    public static String ARGS_OUTPUT_PATH = "-out";
+    public static String ARGS_CLUSTERING = "-clustering";
+    public static String ARGS_CONNECTION_STRING = "-con";
+    public static String ARGS_BUFFER_SIZE = "-buffer";
+    public static String ARGS_LINE_LIMIT = "-limit";
+    public static String ARGS_NAMESPACES = "-namespace";
 
     public static void main(String[] args) {
 
         String dataPath = DEFAULT_DATA_PATH;
         String outputPath = DEFAULT_OUTPUT_PATH;
         String connectionString = DEFAULT_CONN_STRING;
+        String clustering = null;
         String[] prefixes = null;
+        int bufferSize = -1;
         int limit = -1;
 
 
         // read command line arguments
         for(int i = 0; i < args.length - 1; i += 2) {
 
-            if(args[i].equals("-d")) {
+            if(args[i].equals(ARGS_INPUT_PATH)) {
                 dataPath = args[i + 1];
             }
 
-            if(args[i].equals("-o")) {
+            if(args[i].equals(ARGS_OUTPUT_PATH)) {
                 outputPath = args[i + 1];
             }
 
-            if(args[i].equals("-c")) {
+            if(args[i].equals(ARGS_CLUSTERING)) {
+                clustering = args[i + 1];
+            }
+
+
+            if(args[i].equals(ARGS_CONNECTION_STRING)) {
                 connectionString = args[i + 1];
             }
 
-            if(args[i].equals("-l")) {
+            if(args[i].equals(ARGS_BUFFER_SIZE)) {
+                try {
+                    bufferSize = Integer.parseInt(args[i + 1]);
+                }
+                catch(NumberFormatException e) {
+                    bufferSize  = -1;
+                }
+            }
+
+            if(args[i].equals(ARGS_LINE_LIMIT)) {
                 try {
                     limit = Integer.parseInt(args[i + 1]);
                 }
@@ -58,7 +80,7 @@ public class DataRewriter {
                 }
             }
 
-            if(args[i].equals("-n")) {
+            if(args[i].equals(ARGS_NAMESPACES)) {
                 prefixes = args[i + 1].split(",");
             }
         }
@@ -92,18 +114,14 @@ public class DataRewriter {
         }
 
         // create new maps
-        DatabaseSingletonMap singletonMap;
+        DatabaseRewriteMap singletonMap;
 
         try {
-            singletonMap = new DatabaseSingletonMap(connectionString, 1000000);
+            singletonMap = new DatabaseRewriteMap(connectionString, clustering, bufferSize);
         } catch (SQLException e) {
             e.printStackTrace();
             return;
         }
-
-        InMemoryClusterMap clusterMap = new InMemoryClusterMap();
-
-
 
         // get a list of data files that need to be rewritten
         File dataFolder = new File(dataPath);
@@ -122,7 +140,7 @@ public class DataRewriter {
 
             DBpediaClusteringHelper.rewriteDataFiles(
                     singletonMap,
-                    clusterMap,
+                    null,
                     file,
                     outputPath,
                     "-replaced",
@@ -133,8 +151,6 @@ public class DataRewriter {
             System.out.println("=============================");
 
         }
-
-
 
         singletonMap.close();
 
